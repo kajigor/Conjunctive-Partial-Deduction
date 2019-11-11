@@ -10,6 +10,7 @@ import Text.ParserCombinators.Parsec.Expr
 import qualified Text.ParserCombinators.Parsec.Token as T
 import Text.ParserCombinators.Parsec.Language
 import Debug.Trace
+import Prelude hiding ((<>))
 
 -- programs consist of a goal conjunction and a set of clauses
 
