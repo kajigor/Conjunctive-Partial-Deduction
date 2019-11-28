@@ -1,0 +1,18 @@
+:quit
+:prog
+:trans
+:eval
+:quit
+:prog
+:eval
+:prog
+:eval
+:load examples/dappend.pl 
+:eval
+:load examples/dappend.pl 
+:quit
+:prog
+:load examples/dappend.pl 
+:eval
+:load examples/dappend.pl 
+:quit
