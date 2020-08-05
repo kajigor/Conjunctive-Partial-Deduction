@@ -18,14 +18,14 @@ import Debug.Trace
 
 type Prog = (Term,[(Term,Term)])
 
-showprog = render.prettyProg
+showprog (t, p) = render.prettyProg $ (t, sort $ nub p)
 
 -- terms are logical variables, atoms, conjunctions or truth values
 
 data Term = Var String
           | Atom String [Term]
           | Conjunction [Term]
-          deriving Eq
+          deriving (Eq, Ord)
 
 instance Show Term where
    show = render.prettyTerm
@@ -171,7 +171,7 @@ renameTerm r (Atom a ts) = Atom a (map (renameTerm r) ts)
 
 renameTerm r (Conjunction ts) = Conjunction (map (renameTerm r) ts)
 
-renameVar xs x = if x `elem` xs then renameVar xs (x++"'") else x
+renameVar xs x = if x `elem` xs then renameVar xs (x++"_") else x
 
 renameVars xs xs' = take (length xs') (foldr (\x xs -> let x' = renameVar xs x in x':xs) xs xs')
 
@@ -197,7 +197,7 @@ makeConjunction ts = Conjunction ts
 prettyProg (t,d) = vcat (map prettyClause d) $$ text "<-" <+> prettyTerm t <> text "."
 
 prettyClause (h,Conjunction []) = prettyTerm h <> text "."
-prettyClause (h,t) = prettyTerm h <+> text "<-" <+> prettyTerm t <> text "."
+prettyClause (h,t) = prettyTerm h <+> text ":-" <+> prettyTerm t <> text "."
 
 prettyTerm (Var x) = text x
 prettyTerm t@(Atom a ts)

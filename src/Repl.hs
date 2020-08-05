@@ -1,9 +1,9 @@
- 
+
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
-module Repl where 
+module Repl where
 
 import System.Console.Repline
 import Control.Monad.State.Strict
@@ -14,97 +14,98 @@ import System.IO
 import Data.List (isPrefixOf, intercalate, sortBy)
 import Data.Ord (comparing)
 
-import Term (Term (..), parseProg, showprog, atomName, instantiateTerm, parseTerm, eval, varsTerm') 
-import Tree (residualise, trans)
+import Term
+import Tree
 
 
-type Prog = ([Term], [(Term, [Term])])
-type IState = Maybe Prog
+type Program = (Term,[(Term,Term)])
+type IState = Maybe Program
 type Repl a = HaskelineT (StateT IState IO) a
 
-cmd :: String -> Repl () 
-cmd input = liftIO $ print input 
+cmd :: String -> Repl ()
+cmd input = liftIO $ print input
 
 opts :: [(String, [String] -> Repl ())]
 opts = [
     ("load", load)
-  , ("prog", prog)
+  , ("prog", program)
   , ("eval", evaluate)
   , ("trans", translate)
   , ("quit", quit)
   , ("help", help)
   ]
 
-load :: [String] -> Repl () 
+load :: [String] -> Repl ()
 load [name] = do
   fileExists <- liftIO $ doesFileExist name
-  if fileExists 
-  then do 
+  if fileExists
+  then do
       file <- liftIO $ readFile name
-      case parseProg file of 
-        Left s -> 
-          liftIO $ putStrLn $ "Could not parse term in file " ++ name  
-        Right t -> do 
-          liftIO $ putStrLn $ "Loading file: " ++ name 
+      case parseProg file of
+        Left s ->
+          liftIO $ putStrLn $ "Could not parse term in file " ++ name
+        Right t -> do
+          liftIO $ putStrLn $ "Loading file: " ++ name
           put (Just t)
   else liftIO $ putStrLn $ "No such file: " ++ name
-load _ = 
+load _ =
   liftIO $ putStrLn "Please only give me one file name "
 
-prog :: [String] -> Repl () 
-prog _ = do 
-  p <- get 
-  (liftIO . putStrLn) (maybe "No program loaded" showprog p) 
+program :: [String] -> Repl ()
+program _ = do
+  p <- get
+  (liftIO . putStrLn) (maybe "No program loaded" showprog p)
 
-evaluate :: [String] -> Repl () 
-evaluate _ = do 
+evaluate :: [String] -> Repl ()
+evaluate _ = do
   p <- get
   case p of
     Nothing -> liftIO $ putStrLn "No program loaded"
-    Just (ts,cs) -> 
-      liftIO $ f (foldr varsTerm' [] ts) ts cs []
-        where
-        f [] ts cs env = 
-          let ts' = map (instantiateTerm env) ts
-              xs  = foldr varsTerm' [] ts'
-              tss = eval (map Var xs) ts' cs
-          in  case tss of
-                  [] -> liftIO $ putStrLn "False"
-                  _ -> do 
-                    liftIO $ putStrLn "True"
-                    g xs tss
-                      where
-                        g xs [] = return () 
-                        g xs (ts:tss) = h xs ts
-                          where
-                            h [] [] = g xs tss
-                            h (x:xs) (t:ts) = do liftIO $ putStrLn $ x++" = "++show t
-                                                 h xs ts
-        f (x:xs) ts cs env = do 
-          liftIO $ putStr $ x ++ " = "
-          liftIO $ hFlush stdout
-          l <- getLine
-          case parseTerm l of
-            Left s -> do liftIO $ putStrLn $ "Could not parse term: " ++ show s
-                         f (x:xs) ts cs env
-            Right u -> if   u == Var x
-                       then f xs ts cs env
-                       else f xs ts cs ((x,u):env)
 
-translate :: [String] -> Repl () 
-translate _ = do 
-  p <- get 
-  case p of 
+    Just (t,d) ->
+        liftIO $ f (vars t) t [] d
+      where
+        f [] t e d = let  t' = walk e t
+                          xs = vars t'
+                          rs = eval t' d
+                      in  case rs of
+                            [] -> liftIO $ putStrLn "False"
+                            _ -> do liftIO $ putStrLn "True"
+                                    g xs rs
+                                    where
+                                      g xs [] = return ()
+                                      g xs (r:rs) = h xs r
+                                        where
+                                          h [] [] = g xs rs
+                                          h (x:xs) (t:ts) = do
+                                            liftIO $ putStrLn $ x++" = "++show t
+                                            h xs ts
+        f (x:xs) t e d = do liftIO $ putStr $ x++" = "
+                            liftIO $ hFlush stdout
+                            l <-  getLine
+                            case parseTerm l of
+                                Left s -> do
+                                  liftIO $ putStrLn $ "Could not parse term: "++ show s
+                                  f (x:xs) t e d
+                                Right u ->
+                                  if   u == Var x
+                                  then f xs t e d
+                                  else f xs t ((x,u):e) d
+
+
+translate :: [String] -> Repl ()
+translate _ = do
+  p <- get
+  case p of
     Nothing -> liftIO $ putStrLn "No program loaded"
-    Just (ts, cs) -> do 
-      let (ts', cs') = residualise $ trans ts cs 
-      let cs'' = sortBy (comparing $ atomName . fst) cs'
-      liftIO $ putStrLn $ showprog (ts', cs'')
+    Just (ts, cs) -> do
+      let p = trans (ts, cs)
+      liftIO $ putStrLn $ showprog p
 
-quit :: [String] -> Repl () 
-quit _ = abort 
+quit :: [String] -> Repl ()
+quit _ = abort
 
-help :: [String] -> Repl () 
+help :: [String] -> Repl ()
 help _ = liftIO $ putStrLn helpMessage
 
 helpMessage = "\n:load filename\t\tTo load the given filename\n"++
@@ -116,12 +117,12 @@ helpMessage = "\n:load filename\t\tTo load the given filename\n"++
 
 
 init :: Repl ()
-init = 
+init =
   liftIO $ putStrLn ("Welcome!\n" ++ helpMessage)
 
 -- Completion
 comp :: Monad m => WordCompleter m
-comp = listWordCompleter $ map (':' :) $ map fst opts 
+comp = listWordCompleter $ map (':' :) $ map fst opts
 
 defaultMatcher :: MonadIO m => [(String, CompletionFunc m)]
 defaultMatcher = [
@@ -129,7 +130,7 @@ defaultMatcher = [
   ]
 
 repl = flip evalStateT Nothing
-     $ evalRepl (pure "LOG> ") cmd opts (Just ':') (Prefix (wordCompleter comp) defaultMatcher) init
+     $ evalRepl (pure "REPL> ") cmd opts (Just ':') (Prefix (wordCompleter comp) defaultMatcher) init
 
 main = repl
 

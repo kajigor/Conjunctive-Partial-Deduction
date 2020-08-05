@@ -10,7 +10,7 @@ data Tree = Node Term Tree -- a memoised node
           | And [Tree] -- a conjunction
           | Gen [(String,Term)] Tree -- a most specific generalisation giving the generalisation substitution
           | BackEdge Term -- an instance of a previous conjunction
-   deriving (Show)
+   deriving (Show, Eq)
 
 -- construct a program from a tree
 
@@ -35,7 +35,7 @@ residualiseClause h (Node t b) m d = case find (isInst t) (backedges b) of
                                                        h' = Atom a (map Var (vars t))
                                                        d' = residualiseClause h' b ((h',t):m) d
                                                    in  (h,h'):d'
-residualiseClause h (Or ebs) m d = foldl (\d (e,b) -> residualiseClause (walk e h) b m d) d ebs
+residualiseClause h (Or ebs) m d = foldl (\d (e,b) -> residualiseClause (walk e h) b m d) d (nub ebs)
 residualiseClause h b m d = let (t,d') = residualise' b m d
                             in  (h,t):d'
 
